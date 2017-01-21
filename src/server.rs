@@ -1,4 +1,6 @@
 
+#![allow( non_upper_case_globals )]
+
 use languageserver_types::*;
 use serde;
 use serde_json;
@@ -18,10 +20,10 @@ use tokio_core::io::{
 macro_rules! server_messages {
     (
         methods {
-            $( $method_name : pat => $method_type : ident $( ( $method_param : ty ) )*; )*
+            $( $method_name : ident => $method_type : ident $( ( $method_param : ty ) )*; )*
         },
         notifications {
-            $( $notif_name : pat => $notif_type : ident $( ( $notif_param : ty ) )*; )*
+            $( $notif_name : ident => $notif_type : ident $( ( $notif_param : ty ) )*; )*
         }
     ) => {
         #[derive( Debug )]
@@ -163,35 +165,36 @@ pub struct RequestResponseMessage {
 
 server_messages! {
     methods {
-        "initialize" => Initialize( InitializeParams );
-        "shutdown" => Shutdown;
-        "textDocument/completion" => Completion( TextDocumentPositionParams );
-        "completionItem/resolve" => CompletionResolve( CompletionItem );
-        "textDocument/hover" => Hover( TextDocumentPositionParams );
-        "textDocument/signatureHelp" => SignatureHelp( TextDocumentPositionParams );
-        "textDocument/definition" => GotoDefinition( TextDocumentPositionParams );
-        "textDocument/references" => FindReferences( ReferenceParams );
-        "textDocument/documentHighlight" => DocumentHighlights( TextDocumentPositionParams );
-        "textDocument/documentSymbol" => DocumentSymbols( DocumentSymbolParams );
-        "workspace/symbol" => WorkspaceSymbols( WorkspaceSymbolParams );
-        "textDocument/codeAction" => CodeAction( CodeActionParams );
-        "textDocument/codeLens" => CodeLens( CodeLensParams );
-        "codeLens/resolve" => CodeLensResolve( CodeLens );
-        "textDocument/documentLink" => DocumentLink( DocumentLinkParams );
-        "documentLink/resolve" => DocumentLinkResolve( DocumentLink );
-        "textDocument/formatting" => DocumentFormatting( DocumentFormattingParams );
-        "textDocument/rangeFormatting" => DocumentRangeFormatting( DocumentRangeFormattingParams );
-        "textDocument/onTypeFormatting" => DocumentOnTypeFormatting( DocumentOnTypeFormattingParams );
-        "textDocument/rename" => Rename( RenameParams );
+        REQUEST__Initialize                        => Initialize( InitializeParams );
+        REQUEST__Shutdown                          => Shutdown;
+        REQUEST__Completion                        => Completion( TextDocumentPositionParams );
+        REQUEST__ResolveCompletionItem             => CompletionResolve( CompletionItem );
+        REQUEST__Hover                             => Hover( TextDocumentPositionParams );
+        REQUEST__SignatureHelp                     => SignatureHelp( TextDocumentPositionParams );
+        REQUEST__GotoDefinition                    => GotoDefinition( TextDocumentPositionParams );
+        REQUEST__References                        => FindReferences( ReferenceParams );
+        REQUEST__DocumentHighlight                 => DocumentHighlights( TextDocumentPositionParams );
+        REQUEST__DocumentSymbols                   => DocumentSymbols( DocumentSymbolParams );
+        REQUEST__WorkspaceSymbols                  => WorkspaceSymbols( WorkspaceSymbolParams );
+        REQUEST__CodeAction                        => CodeAction( CodeActionParams );
+        REQUEST__CodeLens                          => CodeLens( CodeLensParams );
+        REQUEST__CodeLensResolve                   => CodeLensResolve( CodeLens );
+        REQUEST__DocumentLink                      => DocumentLink( DocumentLinkParams );
+        REQUEST__DocumentLinkResolve               => DocumentLinkResolve( DocumentLink );
+        REQUEST__Formatting                        => DocumentFormatting( DocumentFormattingParams );
+        REQUEST__RangeFormatting                   => DocumentRangeFormatting( DocumentRangeFormattingParams );
+        REQUEST__OnTypeFormatting                  => DocumentOnTypeFormatting( DocumentOnTypeFormattingParams );
+        REQUEST__Rename                            => Rename( RenameParams );
     },
     notifications {
-        "exit" => Exit;
-        "workspace/didChangeConfiguration" => DidChangeConfiguration( DidChangeConfigurationParams );
-        "textDocument/didOpen" => DidOpenTextDocument( DidOpenTextDocumentParams );
-        "textDocument/didChange" => DidChangeTextDocument( DidChangeTextDocumentParams );
-        "textDocument/didSave" => DidSaveTextDocument( DidSaveTextDocumentParams );
-        "textDocument/didClose" => DidCloseTextDocument( DidCloseTextDocumentParams );
-        "textDocument/didChangeWatchedFiles" => DidChangeWatchedFiles( DidChangeWatchedFilesParams );
+        NOTIFICATION__Cancel                       => Cancel( CancelParams );
+        NOTIFICATION__Exit                         => Exit;
+        NOTIFICATION__WorkspaceChangeConfiguration => DidChangeConfiguration( DidChangeConfigurationParams );
+        NOTIFICATION__DidOpenTextDocument          => DidOpenTextDocument( DidOpenTextDocumentParams );
+        NOTIFICATION__DidChangeTextDocument        => DidChangeTextDocument( DidChangeTextDocumentParams );
+        NOTIFICATION__DidCloseTextDocument         => DidCloseTextDocument( DidCloseTextDocumentParams );
+        NOTIFICATION__DidSaveTextDocument          => DidSaveTextDocument( DidSaveTextDocumentParams );
+        NOTIFICATION__DidChangeWatchedFiles        => DidChangeWatchedFiles( DidChangeWatchedFilesParams );
     }
 }
 
