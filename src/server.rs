@@ -1,0 +1,412 @@
+
+use languageserver_types::*;
+use serde;
+use serde_json;
+use std::{
+    io,
+    mem,
+    str
+};
+use std::collections::{
+    HashMap
+};
+use tokio_core::io::{
+    Codec,
+    EasyBuf
+};
+
+macro_rules! server_messages {
+    (
+        methods {
+            $( $method_name : pat => $method_type : ident $( ( $method_param : ty ) )*; )*
+        },
+        notifications {
+            $( $notif_name : pat => $notif_type : ident $( ( $notif_param : ty ) )*; )*
+        }
+    ) => {
+        #[derive( Debug )]
+        pub enum RequestMethod {
+            $( $method_type $( ( $method_param ) )*, )*
+        }
+
+        #[derive( Debug )]
+        pub enum NotificationMethod {
+            $( $notif_type $( ( $notif_param ) )*, )*
+        }
+
+        pub fn parse_server_message( msg_json_str : &str ) -> io::Result< ServerMessage > {
+            let msg_json : serde_json::Value = match serde_json::from_str( msg_json_str ) {
+                Ok( msg_json ) => msg_json,
+                Err( _ ) => return Err( new_invalid_data_error( "Invalid JSON data." ) )
+            };
+
+            if let Some( method_val ) = msg_json.lookup( "method" ) {
+                let method = match method_val.as_str( ) {
+                    Some( method ) => method,
+                    None => return Err( new_invalid_data_error( "Invalid 'method' field, could not parse as String." ) )
+                };
+                match method {
+                    $(
+                        $method_name => {
+                            let msg_id = match msg_json.lookup( "id" ) {
+                                Some( msg_id ) => {
+                                    match msg_id.as_i64( ) {
+                                        Some( msg_id ) => msg_id,
+                                        None => return Err( new_invalid_data_error( "Invalid 'id' field, could not parse as number." ) )
+                                    }
+                                },
+                                None => return Err( new_invalid_data_error( "Missing required 'id' field." ) )
+                            };
+                            let msg = RequestMessage {
+                                id     : msg_id,
+                                method : RequestMethod::$method_type $( ( parse_parameters::< $method_param >( &msg_json )? ) )*
+                            };
+                            Ok( ServerMessage::Request( msg ) )
+                        }
+                    ),*
+                    $(
+                        $notif_name => {
+                            let notif = NotificationMessage {
+                                method : NotificationMethod::$notif_type $( ( parse_parameters::< $notif_param >( &msg_json )? ) )*
+                            };
+                            Ok( ServerMessage::Notification( notif ) )
+                        }
+                    ),*
+                    _ => Err( new_invalid_data_error( "Invalid request method." ) )
+                }
+            }
+            else {
+                return Err( new_invalid_data_error( "Missing required 'method' field." ) );
+            }
+        }
+    };
+}
+
+macro_rules! server_responses {
+    (
+        datas {
+            $( $data_type : ident( $data_param : ty ); )*
+        },
+        errors {
+            $( $err_name : ident( $err_val : expr ); )*
+        }
+    ) => {
+        #[derive( Debug )]
+        pub enum RequestResponseData {
+            $( $data_type ( $data_param ) ),*
+        }
+
+        $( pub static $err_name : i64 = $err_val; )*
+
+        impl serde::Serialize for RequestResponseData {
+
+            fn serialize< S >( &self, serializer : &mut S ) -> Result< ( ), S::Error > where S : serde::Serializer {
+                match *self {
+                    $(
+                        RequestResponseData::$data_type( ref param ) => {
+                            param.serialize( serializer )
+                        }
+                    ),*
+                }
+            }
+
+        }
+    }
+}
+
+#[derive( Debug )]
+pub struct IncomingServerMessage {
+    headers : HashMap< String, String >,
+    message : ServerMessage
+}
+
+#[derive( Debug )]
+pub struct OutgoingServerMessage {
+    headers : HashMap< String, String >,
+    message : ClientMessage
+}
+
+#[derive( Debug )]
+pub enum ServerMessage {
+    Request( RequestMessage ),
+    Notification( NotificationMessage )
+}
+
+#[derive( Debug )]
+pub enum ClientMessage {
+    Response( RequestResponseMessage )
+}
+
+#[derive( Debug )]
+pub struct RequestMessage {
+    pub id     : i64,
+    pub method : RequestMethod
+}
+
+#[derive( Debug )]
+pub struct NotificationMessage {
+    pub method : NotificationMethod
+}
+
+#[derive( Debug, Serialize )]
+pub struct RequestResponseError {
+    pub code    : i64,
+    pub message : String
+}
+
+#[derive( Debug )]
+pub struct RequestResponseMessage {
+    id     : i64,
+    result : Option< RequestResponseData >,
+    error  : Option< RequestResponseError >
+}
+
+server_messages! {
+    methods {
+        "initialize" => Initialize( InitializeParams );
+        "shutdown" => Shutdown;
+        "textDocument/completion" => Completion( TextDocumentPositionParams );
+        "completionItem/resolve" => CompletionResolve( CompletionItem );
+        "textDocument/hover" => Hover( TextDocumentPositionParams );
+        "textDocument/signatureHelp" => SignatureHelp( TextDocumentPositionParams );
+        "textDocument/definition" => GotoDefinition( TextDocumentPositionParams );
+        "textDocument/references" => FindReferences( ReferenceParams );
+        "textDocument/documentHighlight" => DocumentHighlights( TextDocumentPositionParams );
+        "textDocument/documentSymbol" => DocumentSymbols( DocumentSymbolParams );
+        "workspace/symbol" => WorkspaceSymbols( WorkspaceSymbolParams );
+        "textDocument/codeAction" => CodeAction( CodeActionParams );
+        "textDocument/codeLens" => CodeLens( CodeLensParams );
+        "codeLens/resolve" => CodeLensResolve( CodeLens );
+        "textDocument/documentLink" => DocumentLink( DocumentLinkParams );
+        "documentLink/resolve" => DocumentLinkResolve( DocumentLink );
+        "textDocument/formatting" => DocumentFormatting( DocumentFormattingParams );
+        "textDocument/rangeFormatting" => DocumentRangeFormatting( DocumentRangeFormattingParams );
+        "textDocument/onTypeFormatting" => DocumentOnTypeFormatting( DocumentOnTypeFormattingParams );
+        "textDocument/rename" => Rename( RenameParams );
+    },
+    notifications {
+        "exit" => Exit;
+        "workspace/didChangeConfiguration" => DidChangeConfiguration( DidChangeConfigurationParams );
+        "textDocument/didOpen" => DidOpenTextDocument( DidOpenTextDocumentParams );
+        "textDocument/didChange" => DidChangeTextDocument( DidChangeTextDocumentParams );
+        "textDocument/didSave" => DidSaveTextDocument( DidSaveTextDocumentParams );
+        "textDocument/didClose" => DidCloseTextDocument( DidCloseTextDocumentParams );
+        "textDocument/didChangeWatchedFiles" => DidChangeWatchedFiles( DidChangeWatchedFilesParams );
+    }
+}
+
+server_responses! {
+    datas {
+        Init( InitializeResult );
+        SymbolInfo( Vec< SymbolInformation > );
+        CompletionItems( Vec< CompletionItem > );
+        WorkspaceEdit( WorkspaceEdit );
+        TextEdit( [ TextEdit; 1 ] );
+        Locations( Vec< Location > );
+        Highlights( Vec< DocumentHighlight > );
+        HoverSuccess( Hover );
+    },
+    errors {
+        PARSE_ERROR( -32700 );
+        INVALID_REQUEST( -32600 );
+        METHOD_NOT_FOUND( -32601 );
+        INVALID_PARAMS( -32602 );
+        INTERNAL_ERROR( -32603 );
+        SERVER_ERROR_START( -32099 );
+        SERVER_ERROR_END( -32000 );
+        SERVER_NOT_INITIALIZED( -32002 );
+        UNKNOWN_ERROR_CODE( -32001 );
+    }
+}
+
+fn new_invalid_data_error( error_msg : &'static str ) -> io::Error {
+    io::Error::new( io::ErrorKind::InvalidData, error_msg )
+}
+
+fn parse_parameters< T >( msg_json : &serde_json::Value ) -> io::Result< T > where T : serde::Deserialize {
+    let params = match msg_json.lookup( "params" ) {
+        Some( params ) => params.to_owned( ),
+        None => return Err( new_invalid_data_error( "Missing required 'params' field." ) )
+    };
+
+    match serde_json::from_value( params ) {
+        Ok( value ) => Ok( value ),
+        Err( _ ) => Err( new_invalid_data_error( "Unable to parse parameter field." ) )
+    }
+}
+
+fn easybuf_to_utf8( buf : &EasyBuf ) -> io::Result< &str > {
+    match str::from_utf8( buf.as_ref( ) ) {
+        Ok( s ) => Ok( s ),
+        Err( _ ) => Err( new_invalid_data_error( "Unable to parse bytes as UTF-8." ) )
+    }
+}
+
+enum RLSCodecState {
+    Headers,
+    Body
+}
+
+pub struct RLSCodec {
+    codec_state    : RLSCodecState,
+    headers        : HashMap< String, String >,
+    content_length : usize
+}
+
+impl RLSCodec {
+
+    pub fn new( ) -> Self {
+        RLSCodec {
+            codec_state    : RLSCodecState::Headers,
+            headers        : HashMap::new( ),
+            content_length : 0
+        }
+    }
+
+    fn read_header( &mut self, buf : &mut EasyBuf ) -> io::Result< bool > {
+        if let Some( pos ) = buf.as_ref( ).windows( 2 ).position( | bytes | bytes == b"\r\n" ) {
+            let header_bytes = buf.drain_to( pos );
+            buf.drain_to( 2 );
+
+            if pos == 0 {
+                self.content_length = self.parse_content_length( )?;
+                self.codec_state    = RLSCodecState::Body;
+
+                trace!( "Finished parsing headers. Waiting for '{}' bytes for body.", self.content_length );
+            }
+            else {
+                let header_str = easybuf_to_utf8( &header_bytes )?;
+                trace!( "Received header line: {}", header_str );
+
+                let mut header_parts = header_str.split( ": " );
+
+                if header_parts.clone( ).count( ) != 2 {
+                    return Err( new_invalid_data_error( "Unable to parse invalid header." ) );
+                }
+
+                let header_key = header_parts.next( ).unwrap( );
+                let header_val = header_parts.next( ).unwrap( );
+
+                self.headers.insert( header_key.to_string( ), header_val.to_string( ) );
+            }
+            Ok( true )
+        }
+        else {
+            Ok( false )
+        }
+    }
+
+    fn parse_content_length( &self ) -> io::Result< usize > {
+        if let Some( content_length_str ) = self.headers.get( "Content-Length" ) {
+            if let Ok( content_length ) = content_length_str.parse::< usize >( ) {
+                Ok( content_length )
+            }
+            else {
+                Err( new_invalid_data_error( "Unable to parse 'Content-Length' header into usize." ) )
+            }
+        }
+        else {
+            Err( new_invalid_data_error( "Missing required 'Content-Length' header." ) )
+        }
+    }
+
+    fn reset_codec( &mut self ) -> HashMap< String, String > {
+        let mut new_headers = HashMap::new( );
+        mem::swap( &mut self.headers, &mut new_headers );
+
+        self.codec_state = RLSCodecState::Headers;
+
+        new_headers
+    }
+
+    fn parse_body_contents( &mut self, buf : &mut EasyBuf ) -> io::Result< Option< IncomingServerMessage > > {
+        if buf.len( ) < self.content_length {
+            return Ok( None );
+        }
+
+        let body_bytes = buf.drain_to( self.content_length );
+        let body_str   = easybuf_to_utf8( &body_bytes )?;
+        trace!( "Received body contents: {}", body_str );
+
+        let message = parse_server_message( body_str )?;
+        trace!( "Parsed server message: {:?}", message );
+
+        let headers = self.reset_codec( );
+
+        Ok( Some( IncomingServerMessage{
+            headers : headers,
+            message : message
+        } ) )
+    }
+
+}
+
+impl Codec for RLSCodec {
+
+    type In  = IncomingServerMessage;
+    type Out = OutgoingServerMessage;
+
+    fn decode( &mut self, buf : &mut EasyBuf ) -> io::Result< Option< Self::In > > {
+        loop {
+            match self.codec_state {
+                RLSCodecState::Headers => {
+                    if !self.read_header( buf )? {
+                        return Ok( None );
+                    }
+                },
+                RLSCodecState::Body => {
+                    return self.parse_body_contents( buf );
+                }
+            }
+        }
+    }
+
+    fn encode( &mut self, msg : OutgoingServerMessage, buffer : &mut Vec< u8 > ) -> io::Result< ( ) > {
+        let OutgoingServerMessage{ mut headers, message } = msg;
+
+        let msg_json = message.into_json( );
+        headers.insert( "Content-Length".to_string( ), msg_json.as_bytes( ).len( ).to_string( ) );
+        headers.insert( "Content-Type".to_string( ), "application/vscode-jsonrpc; charset=utf8".to_string( ) );
+
+        for ( ref key, ref val ) in headers {
+            trace!( "Sending header: {} = {}", key, val );
+
+            buffer.extend_from_slice( key.as_bytes( ) );
+            buffer.extend_from_slice( b": " );
+            buffer.extend_from_slice( val.as_bytes( ) );
+            buffer.extend_from_slice( b"\r\n" );
+        }
+        buffer.extend_from_slice( b"\r\n" );
+
+        trace!( "Sending body: {}", msg_json );
+        buffer.extend_from_slice( msg_json.as_bytes( ) );
+
+        Ok( ( ) )
+    }
+}
+
+impl ClientMessage {
+
+    fn into_json( self ) -> String {
+        match self {
+            ClientMessage::Response( value ) => {
+
+                #[derive( Serialize )]
+                struct ResponseMessage {
+                    jsonrpc : &'static str,
+                    id      : i64,
+                    result  : Option< RequestResponseData >,
+                    error   : Option< RequestResponseError >
+                }
+
+                serde_json::to_string( &ResponseMessage {
+                    jsonrpc : "2.0",
+                    id      : value.id,
+                    result  : value.result,
+                    error   : value.error
+                } ).unwrap( )
+            }
+        }
+    }
+
+}
