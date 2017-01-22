@@ -3,6 +3,7 @@ name = "lsp_rs"
 version = "0.1.0"
 authors = ["Jacob Smith <jacob101607@yahoo.com>"]
 
+license = "MIT"
 description = """
 Tokio Codec support for the Language Server Protocol.
 """
