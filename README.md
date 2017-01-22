@@ -8,12 +8,12 @@ ways to implement either part.
 In your `Cargo.toml`:
 ```toml
 [dependencies]
-rls_proto     = { git = "https://github.com/smith61/rls_proto" }
+lsp_rs = { git = "https://github.com/smith61/rls_proto" }
 ```
 
 In your `main.rs` or `lib.rs`:
 ```rust
-extern crate rls_proto;
+extern crate lsp_rs;
 
-use rls_proto::server;
+use lsp_rs::server;
 ```
