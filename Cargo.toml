@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Jacob Smith <jacob101607@yahoo.com>"]
 
 [dependencies]
+erased-serde = "0.1.3"
 futures = "0.1"
 languageserver-types = "0.6.1"
 log = "0.3.6"

@@ -5,6 +5,7 @@
 
 #![allow( non_upper_case_globals )]
 
+use erased_serde;
 use languageserver_types::*;
 use serde;
 use serde_json;
@@ -88,6 +89,47 @@ macro_rules! server_messages {
     };
 }
 
+macro_rules! client_messages {
+    (
+        notifications {
+            $( $notif_name : ident => $notif_type : ident( $notif_param : ty ); )*
+        }
+    ) => {
+
+        pub enum ClientNotificationMessage {
+            $( $notif_type( $notif_param ) ),*
+        }
+
+        impl ClientNotificationMessage {
+
+            pub fn get_message_method( &self ) -> &'static str {
+                match *self {
+                    $(
+                        ClientNotificationMessage::$notif_type( _ ) => {
+                            $notif_name
+                        }
+                    ),*
+                }
+            }
+
+        }
+
+        impl serde::Serialize for ClientNotificationMessage {
+
+            fn serialize< S >( &self, serializer : &mut S ) -> Result< ( ), S::Error > where S : serde::Serializer {
+                match *self {
+                    $(
+                        ClientNotificationMessage::$notif_type( ref param ) => {
+                            param.serialize( serializer )
+                        }
+                    ),*
+                }
+            }
+
+        }
+    }
+}
+
 macro_rules! server_responses {
     (
         datas {
@@ -131,7 +173,6 @@ pub struct IncomingServerMessage {
 }
 
 /// A complete message to send from the server to the client.
-#[derive( Debug )]
 pub struct OutgoingServerMessage {
     /// The headers that should accompany this message.
     ///
@@ -153,10 +194,10 @@ pub enum ServerMessage {
 }
 
 /// Represents a response from the server to the client.
-#[derive( Debug )]
 pub enum ClientMessage {
     /// A RequestResponseMessage that contains the response for a client's previously made request.
-    Response( RequestResponseMessage )
+    Response( RequestResponseMessage ),
+    Notification( ClientNotificationMessage )
 }
 
 /// A Request from the client to the server.
@@ -248,6 +289,15 @@ server_messages! {
         NOTIFICATION__DidCloseTextDocument         => DidCloseTextDocument( DidCloseTextDocumentParams );
         NOTIFICATION__DidSaveTextDocument          => DidSaveTextDocument( DidSaveTextDocumentParams );
         NOTIFICATION__DidChangeWatchedFiles        => DidChangeWatchedFiles( DidChangeWatchedFilesParams );
+    }
+}
+
+client_messages! {
+    notifications {
+        NOTIFICATION__ShowMessage                  => ShowMessage( ShowMessageParams );
+        NOTIFICATION__LogMessage                   => LogMessage( LogMessageParams );
+        NOTIFICATION__TelemetryEvent               => TelemetryEvent( Box< erased_serde::Serialize > );
+        NOTIFICATION__PublishDiagnostics           => PublishDiagnostics( PublishDiagnosticsParams );
     }
 }
 
@@ -450,6 +500,22 @@ impl ClientMessage {
                     result  : value.result,
                     error   : value.error
                 } ).unwrap( )
+            },
+            ClientMessage::Notification( value ) => {
+
+                #[derive( Serialize )]
+                struct NotificationMessage {
+                    jsonrpc : &'static str,
+                    method  : &'static str,
+                    params  : ClientNotificationMessage
+                }
+
+                serde_json::to_string( &NotificationMessage{
+                    jsonrpc : "2.0",
+                    method  : value.get_message_method( ),
+                    params  : value
+                } ).unwrap( )
+
             }
         }
     }
