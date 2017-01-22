@@ -1,3 +1,7 @@
+//! Implements encoding/decoding support and types for the server side of the Language Server protocol.
+//!
+//! Provides an implementation of tokio_core::io::Codec to decode IncomingServerMessages and encode
+//! OutgoingServerMessages
 
 #![allow( non_upper_case_globals )]
 
@@ -116,51 +120,100 @@ macro_rules! server_responses {
     }
 }
 
+/// A completely parsed message and its headers sent from the client to the server.
 #[derive( Debug )]
 pub struct IncomingServerMessage {
-    headers : HashMap< String, String >,
-    message : ServerMessage
+    /// The headers that accompanied the message.
+    pub headers : HashMap< String, String >,
+
+    /// The parsed message.
+    pub message : ServerMessage
 }
 
+/// A complete message to send from the server to the client.
 #[derive( Debug )]
 pub struct OutgoingServerMessage {
-    headers : HashMap< String, String >,
-    message : ClientMessage
+    /// The headers that should accompany this message.
+    ///
+    /// Content-Length and Content-Type will be ignored when writing all headers.
+    pub headers : HashMap< String, String >,
+
+    /// The message to send to the client.
+    pub message : ClientMessage
 }
 
+/// Represents either a request or a notification sent from the client to the server.
 #[derive( Debug )]
 pub enum ServerMessage {
+    /// A RequestMessage sent from the client to the server.
     Request( RequestMessage ),
+
+    /// A NotificationMessage sent from the client to the server.
     Notification( NotificationMessage )
 }
 
+/// Represents a response from the server to the client.
 #[derive( Debug )]
 pub enum ClientMessage {
+    /// A RequestResponseMessage that contains the response for a client's previously made request.
     Response( RequestResponseMessage )
 }
 
+/// A Request from the client to the server.
+///
+/// Requests must be responded to in the order they were received, but they do not have to be
+/// processed in any specific order.
 #[derive( Debug )]
 pub struct RequestMessage {
+    /// The ID of the request that is used to distinguish multiple parallel request's and their responses.
     pub id     : i64,
+    /// The method and it's parameters to process.
     pub method : RequestMethod
 }
 
+/// A Notification from the client to the server.
+///
+/// Notifications must not be responded to and can be handled in any order the server sees fit.
 #[derive( Debug )]
 pub struct NotificationMessage {
+    /// The method and it's parameters to process.
     pub method : NotificationMethod
 }
 
+/// An error response from the server to the client in response to a specific request.
 #[derive( Debug, Serialize )]
 pub struct RequestResponseError {
+    /// The error code.
     pub code    : i64,
+    /// An accompanying error message to present to the client.
     pub message : String
 }
 
+/// A message from the server to the client in response to a specific request.
+///
+/// May contain either a result or an error for either success or failure of a specific client request.
 #[derive( Debug )]
 pub struct RequestResponseMessage {
-    id     : i64,
-    result : Option< RequestResponseData >,
-    error  : Option< RequestResponseError >
+    /// The id of the request that this message responds to.
+    pub id     : i64,
+    /// The result of a successful completion of the request.
+    pub result : Option< RequestResponseData >,
+    /// The error of a request that failed.
+    pub error  : Option< RequestResponseError >
+}
+
+enum RLSCodecState {
+    Headers,
+    Body
+}
+
+/// Implements decoding of IncomingServerMessage and encoding of OutgoingServerMessage
+///
+/// Implements tokio_core::io::Core
+pub struct RLSCodec {
+    codec_state    : RLSCodecState,
+    headers        : HashMap< String, String >,
+    content_length : usize
 }
 
 server_messages! {
@@ -243,17 +296,6 @@ fn easybuf_to_utf8( buf : &EasyBuf ) -> io::Result< &str > {
         Ok( s ) => Ok( s ),
         Err( _ ) => Err( new_invalid_data_error( "Unable to parse bytes as UTF-8." ) )
     }
-}
-
-enum RLSCodecState {
-    Headers,
-    Body
-}
-
-pub struct RLSCodec {
-    codec_state    : RLSCodecState,
-    headers        : HashMap< String, String >,
-    content_length : usize
 }
 
 impl RLSCodec {
