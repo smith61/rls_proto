@@ -3,6 +3,14 @@ name = "lsp_rs"
 version = "0.1.0"
 authors = ["Jacob Smith <jacob101607@yahoo.com>"]
 
+description = """
+Tokio Codec support for the Language Server Protocol.
+"""
+
+homepage   = "https://github.com/smith61/rls_proto"
+repository = "https://github.com/smith61/rls_proto"
+readme     = "README.md"
+
 [dependencies]
 erased-serde = "0.1.3"
 futures = "0.1"
