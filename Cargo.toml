@@ -14,7 +14,6 @@ readme     = "README.md"
 
 [dependencies]
 erased-serde = "0.1.3"
-futures = "0.1"
 languageserver-types = "0.6.1"
 log = "0.3.6"
 serde = "0.8"

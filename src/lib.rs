@@ -1,5 +1,4 @@
 extern crate erased_serde;
-extern crate futures;
 #[macro_use]
 extern crate log;
 extern crate languageserver_types;
