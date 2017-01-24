@@ -296,7 +296,7 @@ client_messages! {
     notifications {
         NOTIFICATION__ShowMessage                  => ShowMessage( ShowMessageParams );
         NOTIFICATION__LogMessage                   => LogMessage( LogMessageParams );
-        NOTIFICATION__TelemetryEvent               => TelemetryEvent( Box< erased_serde::Serialize > );
+        NOTIFICATION__TelemetryEvent               => TelemetryEvent( Box< erased_serde::Serialize + Send > );
         NOTIFICATION__PublishDiagnostics           => PublishDiagnostics( PublishDiagnosticsParams );
     }
 }
