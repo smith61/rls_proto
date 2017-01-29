@@ -33,11 +33,13 @@ macro_rules! server_messages {
     ) => {
         #[derive( Debug )]
         pub enum RequestMethod {
+            Unknown{ method_name : String, params : Option< serde_json::Value > },
             $( $method_type $( ( $method_param ) )*, )*
         }
 
         #[derive( Debug )]
         pub enum NotificationMethod {
+            Unknown{ method_name : String, params : Option< serde_json::Value > },
             $( $notif_type $( ( $notif_param ) )*, )*
         }
 
@@ -79,7 +81,38 @@ macro_rules! server_messages {
                             Ok( ServerMessage::Notification( notif ) )
                         }
                     ),*
-                    _ => Err( new_invalid_data_error( "Invalid request method." ) )
+                    method_name => {
+                        let params = match msg_json.lookup( "params" ) {
+                            Some( params ) => Some( params.to_owned( ) ),
+                            None => None
+                        };
+                        match msg_json.lookup( "id" ) {
+                            Some( msg_id ) => {
+                                let msg_id = match msg_id.as_i64( ) {
+                                    Some( msg_id ) => msg_id,
+                                    None => return Err( new_invalid_data_error( "Invalid 'id' field, could not parse as number." ) )
+                                };
+
+                                let msg = RequestMessage {
+                                    id     : msg_id,
+                                    method : RequestMethod::Unknown {
+                                                method_name : method_name.to_owned( ),
+                                                params      : params
+                                            }
+                                };
+                                Ok( ServerMessage::Request( msg ) )
+                            },
+                            None => {
+                                let notif = NotificationMessage {
+                                    method : NotificationMethod::Unknown{
+                                                method_name : method_name.to_owned( ),
+                                                params      : params
+                                            }
+                                };
+                                Ok( ServerMessage::Notification( notif ) )
+                            }
+                        }
+                    }
                 }
             }
             else {
