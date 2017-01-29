@@ -490,7 +490,9 @@ impl ClientMessage {
                 struct ResponseMessage {
                     jsonrpc : &'static str,
                     id      : i64,
+                    #[serde( skip_serializing_if = "Option::is_none" )]
                     result  : Option< RequestResponseData >,
+                    #[serde( skip_serializing_if = "Option::is_none" )]
                     error   : Option< RequestResponseError >
                 }
 
