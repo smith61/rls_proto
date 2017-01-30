@@ -693,7 +693,7 @@ impl < IP : Protocol, OP : Protocol > LSCodec< IP, OP > {
 impl < IP : Protocol, OP : Protocol > Codec for LSCodec< IP, OP > {
 
     type In  = MessageEnvelope< IncomingMessage< IP::RequestType, IP::NotificationType > >;
-    type Out = MessageEnvelope< OutgoingMessage< OP::RequestType, OP::NotificationType, OP::ResponseType > >;
+    type Out = MessageEnvelope< OutgoingMessage< OP::RequestType, OP::NotificationType, IP::ResponseType > >;
 
     fn decode( &mut self, buf: &mut EasyBuf ) -> io::Result< Option< Self::In > > {
         loop {
