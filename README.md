@@ -1,6 +1,6 @@
 # Language Server Protocol in Rust
 
-This crate implements Tokio codec support for the server side of the Language Server Protocol. The crate only implements
+This crate implements Tokio codec support for the Language Server Protocol. The crate only implements
 encoding and decoding of messages, and does not aim to ever implement IO and request handling as there are many correct
 ways to implement either part.
 
@@ -15,5 +15,5 @@ In your `main.rs` or `lib.rs`:
 ```rust
 extern crate lsp_rs;
 
-use lsp_rs::server;
+use lsp_rs::*;
 ```
